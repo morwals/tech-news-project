@@ -50,19 +50,26 @@ def process_with_ai(title, text):
     Title: {title}
     Text: {text}
     
-    Provide a JSON response with exactly two keys:
+    Provide a JSON response with exactly three keys:
     1. "summary": A concise 3-bullet point summary of the technical value.
-    2. "score": An integer from 1 to 10 rating how relevant and useful this is for a software engineer.
+    2. "score": An integer from 1 to 10 rating how relevant this is for a software engineer.
+    3. "tags": An array of up to 3 short string tags categorizing the tech (e.g., ["React", "Security", "AWS", "System Design", "Python"]).
     
     Format strictly as raw JSON without markdown code blocks.
     """
     try:
         response = model.generate_content(prompt)
         clean_json = response.text.replace("```json", "").replace("```", "").strip()
-        return json.loads(clean_json)
+        data = json.loads(clean_json)
+        
+        # Safety fallback in case the LLM forgets the tags array
+        if "tags" not in data:
+            data["tags"] = ["Tech News"]
+            
+        return data
     except Exception as e:
         print(f"AI Processing failed: {e}")
-        return {"summary": "Could not generate summary.", "score": 5}
+        return {"summary": "Could not generate summary.", "score": 5, "tags": ["Error"]}
 
 def main():
     stories = get_hn_top_stories(limit=5)
@@ -86,6 +93,7 @@ def main():
             "url": story['url'],
             "summary": ai_data.get('summary'),
             "score": ai_data.get('score'),
+            "tags": ai_data.get('tags'), 
             "source": "Hacker News"
         }
         supabase.table("articles").insert(record).execute()
