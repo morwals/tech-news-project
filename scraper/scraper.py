@@ -6,7 +6,6 @@ import google.generativeai as genai
 from supabase import create_client
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -32,6 +31,32 @@ def get_hn_top_stories(limit=5):
         if story and 'url' in story:
             stories.append(story)
     return stories
+
+def get_cisa_vulnerabilities(limit=3):
+    """Fetch the latest actively exploited vulnerabilities from CISA."""
+    print("Fetching CISA Known Exploited Vulnerabilities...")
+    url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        vulnerabilities = data.get("vulnerabilities", [])
+        
+        vulnerabilities.sort(key=lambda x: x.get("dateAdded", ""), reverse=True)
+        
+        stories = []
+        for vuln in vulnerabilities[:limit]:
+            cve_id = vuln.get("cveID")
+            stories.append({
+                "title": f"🚨 {cve_id}: {vuln.get('vulnerabilityName')}",
+                "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                "text": vuln.get('shortDescription'), 
+                "source": "CISA KEV"
+            })
+        return stories
+    except Exception as e:
+        print(f"Failed to fetch CISA data: {e}")
+        return []
 
 def scrape_article_text(url):
     try:
@@ -62,7 +87,6 @@ def process_with_ai(title, text):
         clean_json = response.text.replace("```json", "").replace("```", "").strip()
         data = json.loads(clean_json)
         
-        # Safety fallback in case the LLM forgets the tags array
         if "tags" not in data:
             data["tags"] = ["Tech News"]
             
@@ -72,32 +96,53 @@ def process_with_ai(title, text):
         return {"summary": "Could not generate summary.", "score": 5, "tags": ["Error"]}
 
 def main():
-    stories = get_hn_top_stories(limit=5)
+    # 1. Gather raw data from all our sources
+    hn_stories = get_hn_top_stories(limit=5)
+    cisa_vulns = get_cisa_vulnerabilities(limit=3)
     
-    for story in stories:
-        print(f"Processing: {story['title']}")
+    # Standardize Hacker News data to match our pipeline structure
+    for story in hn_stories:
+        story['text'] = None 
+        story['source'] = "Hacker News"
+
+    # Combine all items into one master list
+    all_items = hn_stories + cisa_vulns
+    
+    for item in all_items:
+        print(f"Processing: {item['title']}")
         
-        existing = supabase.table("articles").select("*").eq("url", story['url']).execute()
+        # 2. Check Database to avoid duplicates
+        existing = supabase.table("articles").select("*").eq("url", item['url']).execute()
         if len(existing.data) > 0:
             print("Already exists in DB. Skipping.")
             continue
             
-        article_text = scrape_article_text(story['url'])
+        # 3. Get the text (Scrape if HN, use provided text if CISA)
+        article_text = item.get('text')
         if not article_text:
-            continue
+            article_text = scrape_article_text(item['url'])
+            if not article_text:
+                print("Could not extract text. Skipping.")
+                continue
             
-        ai_data = process_with_ai(story['title'], article_text)
+        # 4. AI Processing (Summarize, Score, Tag)
+        ai_data = process_with_ai(item['title'], article_text)
         
+        # 5. Save to Database
         record = {
-            "title": story['title'],
-            "url": story['url'],
+            "title": item['title'],
+            "url": item['url'],
             "summary": ai_data.get('summary'),
             "score": ai_data.get('score'),
-            "tags": ai_data.get('tags'), 
-            "source": "Hacker News"
+            "tags": ai_data.get('tags'),
+            "source": item['source']
         }
-        supabase.table("articles").insert(record).execute()
-        print(f"Saved with score {record['score']}!\n")
+        
+        try:
+            supabase.table("articles").insert(record).execute()
+            print(f"Saved with score {record['score']} and tags {record['tags']}!\n")
+        except Exception as e:
+            print(f"Database insert failed: {e}")
 
 if __name__ == "__main__":
     main()

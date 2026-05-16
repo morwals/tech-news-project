@@ -18,8 +18,8 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5174",  # Default Vite port
-        "http://localhost:3000",  # Alternative common port
+        "http://localhost:5174", 
+        "http://localhost:3000", 
         "http://127.0.0.1:5174",
         "https://tech-news-project.vercel.app"
     ],
