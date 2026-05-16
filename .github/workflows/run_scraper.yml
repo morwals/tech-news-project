@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd scrapper
+          cd scraper
           pip install -r requirements.txt
 
       - name: Run Scraper Script
