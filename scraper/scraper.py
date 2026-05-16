@@ -1,5 +1,7 @@
 import os
 import json
+import re
+import time
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
@@ -17,7 +19,8 @@ if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-3-flash-preview')
+# model = genai.GenerativeModel('gemini-3-flash-preview')
+model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 def get_hn_top_stories(limit=5):
     print("Fetching Hacker News top stories...")
@@ -85,6 +88,7 @@ def process_with_ai(title, text):
     try:
         response = model.generate_content(prompt)
         clean_json = response.text.replace("```json", "").replace("```", "").strip()
+        clean_json = re.sub(r',\s*([\]}])', r'\1', clean_json)
         data = json.loads(clean_json)
         
         if "tags" not in data:
@@ -94,6 +98,31 @@ def process_with_ai(title, text):
     except Exception as e:
         print(f"AI Processing failed: {e}")
         return {"summary": "Could not generate summary.", "score": 5, "tags": ["Error"]}
+
+def generate_embedding(text):
+    """Convert text into a 768-dimensional vector array."""
+    try:
+        result = genai.embed_content(
+            # model="models/text-embedding-004",
+            model="models/gemini-embedding-001",
+            content=text,
+            task_type="retrieval_document"
+        )
+        embedding = result.get('embedding')
+        
+        # 2. Safety Check 1: If it's a nested list, grab the first one
+        if embedding and isinstance(embedding[0], list):
+            embedding = embedding[0]
+            
+        # 3. Safety Check 2: If the SDK stitched multiple chunks together (e.g., 3072 dimensions)
+        # We strictly slice it to the first 768 floats so it perfectly matches Supabase.
+        if embedding and len(embedding) > 768:
+            embedding = embedding[:768]
+            
+        return embedding
+    except Exception as e:
+        # print(f"Embedding failed: {e}")
+        return None
 
 def main():
     # 1. Gather raw data from all our sources
@@ -127,6 +156,10 @@ def main():
             
         # 4. AI Processing (Summarize, Score, Tag)
         ai_data = process_with_ai(item['title'], article_text)
+
+        # 4.5 Generate Vector Embedding from the summary
+        summary_text = ai_data.get('summary', '')
+        embedding = generate_embedding(summary_text) if summary_text else None
         
         # 5. Save to Database
         record = {
@@ -135,14 +168,18 @@ def main():
             "summary": ai_data.get('summary'),
             "score": ai_data.get('score'),
             "tags": ai_data.get('tags'),
-            "source": item['source']
+            "source": item['source'],
+            "embedding": embedding
         }
         
         try:
             supabase.table("articles").insert(record).execute()
-            print(f"Saved with score {record['score']} and tags {record['tags']}!\n")
+            # print(f"Saved with score {record['score']} and tags {record['tags']}!\n")
         except Exception as e:
             print(f"Database insert failed: {e}")
+        
+        print("Sleeping 5 seconds to respect API rate limits...")
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()
