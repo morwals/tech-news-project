@@ -11,3 +11,4 @@ __pycache__/
 # Environment secrets (Crucial!)
 **/.env
 .env
+errors-seen.txt
