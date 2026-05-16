@@ -1,0 +1,13 @@
+# Virtual Environments (Root and subfolders)
+.venv/
+**/venv/
+__pycache__/
+*.pyc
+
+# Node dependencies
+**/node_modules/
+**/dist/
+
+# Environment secrets (Crucial!)
+**/.env
+.env
