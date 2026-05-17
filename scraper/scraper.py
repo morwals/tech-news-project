@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
 import datetime
+from email.utils import parsedate_to_datetime 
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -23,20 +24,89 @@ genai.configure(api_key=GEMINI_API_KEY)
 # model = genai.GenerativeModel('gemini-3-flash-preview')
 model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
-def get_hn_top_stories(limit=5):
+def get_hn_top_stories(limit=10):
     print("Fetching Hacker News top stories...")
-    response = requests.get("https://hacker-news.firebaseio.com/v0/topstories.json")
-    story_ids = response.json()[:limit]
+    try:
+        response = requests.get("https://hacker-news.firebaseio.com/v0/topstories.json", timeout=10)
+        
+        story_ids = response.json()[:limit * 3] 
+        
+        stories = []
+        cutoff_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+        
+        for story_id in story_ids:
+            if len(stories) >= limit:
+                break
+                
+            story_res = requests.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json", timeout=5)
+            story = story_res.json()
+            
+            if story and 'url' in story:
+                hn_timestamp = story.get('time', time.time())
+                pub_date = datetime.datetime.fromtimestamp(hn_timestamp, datetime.timezone.utc)
+                
+                if pub_date < cutoff_date:
+                    print(f"Skipping old HN article: {story.get('title')} ({pub_date.strftime('%Y-%m-%d')})")
+                    continue 
+                    
+                story['published_at'] = pub_date.isoformat()
+                stories.append(story)
+        return stories
+    except Exception as e:
+        print(f"HN fetch failed: {e}")
+        return []
+
+def get_rss_news(limit=5):
+    """Fetch latest tech news from high-signal developer RSS feeds."""
+    print("Fetching Dev.to and InfoQ RSS feeds...")
+    feeds = [
+        {"url": "https://dev.to/feed/", "source": "Dev.to"},
+        {"url": "https://feed.infoq.com/", "source": "InfoQ"}
+    ]
     
     stories = []
-    for story_id in story_ids:
-        story_res = requests.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
-        story = story_res.json()
-        if story and 'url' in story:
-            # Convert HN unix timestamp to ISO format
-            pub_time = datetime.datetime.fromtimestamp(story.get('time', time.time()), datetime.timezone.utc).isoformat()
-            story['published_at'] = pub_time
-            stories.append(story)
+    cutoff_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+
+    for feed in feeds:
+        try:
+            res = requests.get(feed["url"], timeout=10)
+            soup = BeautifulSoup(res.content, 'xml') 
+            items = soup.find_all('item')
+            
+            count = 0
+            for item in items:
+                if count >= limit:
+                    break
+                    
+                title = item.title.text if item.title else "No Title"
+                url = item.link.text if item.link else ""
+                
+                # Parse the published date safely
+                pub_date_str = item.pubDate.text if item.pubDate else ""
+                try:
+                    pub_date = parsedate_to_datetime(pub_date_str)
+                except:
+                    pub_date = datetime.datetime.now(datetime.timezone.utc)
+                
+                # ⏩ THE FRESHNESS GATEWAY
+                if pub_date < cutoff_date:
+                    continue
+
+                # Extract HTML description and clean it to pure text
+                desc_html = item.description.text if item.description else ""
+                clean_text = BeautifulSoup(desc_html, 'html.parser').get_text(separator=' ').strip()
+                
+                stories.append({
+                    "title": title,
+                    "url": url,
+                    "text": clean_text[:3000], 
+                    "source": feed["source"],
+                    "published_at": pub_date.isoformat()
+                })
+                count += 1
+        except Exception as e:
+            print(f"Failed to fetch RSS {feed['source']}: {e}")
+            
     return stories
 
 # A dictionary of keywords mapped to standard tags we want to support in the UI
@@ -221,20 +291,25 @@ def get_osv_vulnerabilities():
                 recent_vuln = vulns[0] 
                 vuln_id = recent_vuln.get('id')
                 
-                pub_time = recent_vuln.get('published', datetime.datetime.now(datetime.timezone.utc).isoformat())
-
-                title = f"🚨 COMPROMISE: {pkg['name']} ({pkg['ecosystem']}) - {vuln_id}"
+                pub_time_str = recent_vuln.get('published', datetime.datetime.now(datetime.timezone.utc).isoformat())
                 
-                stories.append({
-                    "title": title,
-                    "url": f"https://osv.dev/vulnerability/{vuln_id}",
-                    "text": recent_vuln.get('details', 'No detailed description provided.'),
-                    "source": "OSV Database",
-                    "bypass_llm": True,
-                    "pre_score": 10,
-                    "pre_tags": ["Security", "Zero-Day", pkg['name'], pkg['ecosystem']],
-                    "published_at": pub_time
-                })
+                pub_time_str = pub_time_str.replace("Z", "+00:00") 
+                pub_time = datetime.datetime.fromisoformat(pub_time_str)
+                
+                cutoff_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+                
+                if pub_time >= cutoff_date:
+                    title = f"🚨 COMPROMISE: {pkg['name']} ({pkg['ecosystem']}) - {vuln_id}"
+                    stories.append({
+                        "title": title,
+                        "url": f"https://osv.dev/vulnerability/{vuln_id}",
+                        "text": recent_vuln.get('details', 'No detailed description provided.'),
+                        "source": "OSV Database",
+                        "bypass_llm": True,
+                        "pre_score": 10,
+                        "pre_tags": ["Security", "Zero-Day", pkg['name'], pkg['ecosystem']],
+                        "published_at": pub_time.isoformat()
+                    })
         except Exception as e:
             print(f"OSV fetch failed for {pkg['name']}: {e}")
             
@@ -245,12 +320,13 @@ def main():
     hn_stories = get_hn_top_stories(limit=10)
     cisa_vulns = get_cisa_vulnerabilities(limit=3)
     osv_vulns = get_osv_vulnerabilities() 
+    rss_stories = get_rss_news(limit=5)
     
     for story in hn_stories:
         story['text'] = None 
         story['source'] = "Hacker News"
 
-    all_items = hn_stories + cisa_vulns + osv_vulns
+    all_items = hn_stories + cisa_vulns + osv_vulns + rss_stories
     
     for item in all_items:
         print(f"Processing: {item['title']}")
