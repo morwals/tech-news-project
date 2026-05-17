@@ -27,39 +27,8 @@ Zero-Day Fast Tracking: Critical CVEs from the OSV database bypass standard queu
 
 Personalized Ranking: Opt-in authenticated users receive personalized feeds calculated via the cosine distance between the article's vector and their custom user-profile vector.
 
-🏗 Production Architecture
-Signal is built on a decoupled, microservice-inspired architecture designed for scale, fault tolerance, and asynchronous processing.
-
-Code snippet
-
-```mermaid
-    graph TD
-    subgraph Ingestion Pipeline [Data Extractors & Transformers]
-    Cron[Cron Job / EventBridge] --> Scraper(Python Scraper Engine)
-    Scraper --> OSV[OSV / CISA API]
-    Scraper --> RSS[Dev.to / InfoQ RSS]
-    Scraper --> HN[Hacker News API]
-    Scraper --> PreFilter{Deterministic Filter\nKeyword & Freshness}
-    PreFilter -- Noise --> Drop[Discard]
-    PreFilter -- High Signal --> LLM[Gemini API\nSummary & Score]
-    LLM --> Vec[Generate 768d Vector]
-    end
-
-    subgraph Storage & Serving [Core Backend]
-        Vec --> DB[(Supabase PostgreSQL\n+ pgvector)]
-        API(FastAPI Backend) <--> DB
-        API <--> Client(React Frontend)
-    end
-
-    subgraph Distributed Task Queue [Email Delivery]
-        Cron2[Daily Digest Trigger] --> Producer(Message Producer)
-        Producer --> Redis[Redis / SQS Message Queue]
-        Redis --> Worker(Async Celery Workers)
-        Worker --> Email[Resend Email API]
-        Worker -- Fails --> DLQ[Dead Letter Queue]
-    end
-
 ---
+
 🔥 Resume-Worthy Engineering Decisions
 Deterministic Filtering Pre-LLM: Reduced API token consumption by 80% and slashed processing latency by building a local, regex-based heuristic engine to drop non-technical noise before triggering expensive AI calls.
 
@@ -150,4 +119,38 @@ Push to the branch (git push origin feature/AmazingFeature).
 Open a Pull Request.
 
 For major architectural changes, please open an issue first to discuss what you would like to change.
-```
+
+````
+
+🏗 Production Architecture
+Signal is built on a decoupled, microservice-inspired architecture designed for scale, fault tolerance, and asynchronous processing.
+
+Code snippet
+
+```mermaid
+    graph TD
+    subgraph Ingestion Pipeline [Data Extractors & Transformers]
+    Cron[Cron Job / EventBridge] --> Scraper(Python Scraper Engine)
+    Scraper --> OSV[OSV / CISA API]
+    Scraper --> RSS[Dev.to / InfoQ RSS]
+    Scraper --> HN[Hacker News API]
+    Scraper --> PreFilter{Deterministic Filter\nKeyword & Freshness}
+    PreFilter -- Noise --> Drop[Discard]
+    PreFilter -- High Signal --> LLM[Gemini API\nSummary & Score]
+    LLM --> Vec[Generate 768d Vector]
+    end
+
+    subgraph Storage & Serving [Core Backend]
+        Vec --> DB[(Supabase PostgreSQL\n+ pgvector)]
+        API(FastAPI Backend) <--> DB
+        API <--> Client(React Frontend)
+    end
+
+    subgraph Distributed Task Queue [Email Delivery]
+        Cron2[Daily Digest Trigger] --> Producer(Message Producer)
+        Producer --> Redis[Redis / SQS Message Queue]
+        Redis --> Worker(Async Celery Workers)
+        Worker --> Email[Resend Email API]
+        Worker -- Fails --> DLQ[Dead Letter Queue]
+    end
+````
