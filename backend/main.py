@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from supabase import create_client, ClientOptions  # <--- Added ClientOptions
+from supabase import create_client, ClientOptions
 import google.generativeai as genai
 from dotenv import load_dotenv
 

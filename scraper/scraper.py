@@ -71,7 +71,7 @@ def scrape_article_text(url):
     except Exception:
         return ""
 
-def process_with_ai(title, text):
+def process_with_ai(title, text, retries=3):
     prompt = f"""
     You are an AI assistant for a Senior Software Engineer.
     Analyze this article. 
@@ -81,61 +81,119 @@ def process_with_ai(title, text):
     Provide a JSON response with exactly three keys:
     1. "summary": A concise 3-bullet point summary of the technical value.
     2. "score": An integer from 1 to 10 rating how relevant this is for a software engineer.
-    3. "tags": An array of up to 3 short string tags categorizing the tech (e.g., ["React", "Security", "AWS", "System Design", "Python"]).
+    3. "tags": An array of up to 3 short string tags categorizing the tech.
     
     Format strictly as raw JSON without markdown code blocks.
     """
-    try:
-        response = model.generate_content(prompt)
-        clean_json = response.text.replace("```json", "").replace("```", "").strip()
-        clean_json = re.sub(r',\s*([\]}])', r'\1', clean_json)
-        data = json.loads(clean_json)
-        
-        if "tags" not in data:
-            data["tags"] = ["Tech News"]
+    
+    for attempt in range(retries):
+        try:
+            response = model.generate_content(prompt)
+            clean_json = response.text.replace("```json", "").replace("```", "").strip()
+            clean_json = re.sub(r',\s*([\]}])', r'\1', clean_json)
+            data = json.loads(clean_json)
             
-        return data
-    except Exception as e:
-        print(f"AI Processing failed: {e}")
-        return {"summary": "Could not generate summary.", "score": 5, "tags": ["Error"]}
+            if "tags" not in data:
+                data["tags"] = ["Tech News"]
+                
+            return data
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "Quota" in error_msg:
+                wait_time = 15 * (attempt + 1) 
+                print(f"⚠️ Rate limited by Gemini API. Waiting {wait_time} seconds before retrying...")
+                time.sleep(wait_time)
+            else:
+                print(f"AI Processing failed: {e}")
+                return {"summary": "Could not generate summary.", "score": 5, "tags": ["Error"]}
+                
+    return {"summary": "Failed after retries due to rate limits.", "score": 5, "tags": ["Error"]}
 
-def generate_embedding(text):
-    """Convert text into a 768-dimensional vector array."""
-    try:
-        result = genai.embed_content(
-            # model="models/text-embedding-004",
-            model="models/gemini-embedding-001",
-            content=text,
-            task_type="retrieval_document"
-        )
-        embedding = result.get('embedding')
-        
-        # 2. Safety Check 1: If it's a nested list, grab the first one
-        if embedding and isinstance(embedding[0], list):
-            embedding = embedding[0]
+def generate_embedding(text, retries=3):
+    """Convert text into a 768-dimensional vector array with auto-retry."""
+    for attempt in range(retries):
+        try:
+            result = genai.embed_content(
+                model="models/gemini-embedding-001",
+                content=text,
+                task_type="retrieval_document"
+            )
             
-        # 3. Safety Check 2: If the SDK stitched multiple chunks together (e.g., 3072 dimensions)
-        # We strictly slice it to the first 768 floats so it perfectly matches Supabase.
-        if embedding and len(embedding) > 768:
-            embedding = embedding[:768]
+            embedding = result.get('embedding')
             
-        return embedding
-    except Exception as e:
-        # print(f"Embedding failed: {e}")
-        return None
+            if embedding and isinstance(embedding[0], list):
+                embedding = embedding[0]
+            if embedding and len(embedding) > 768:
+                embedding = embedding[:768]
+                
+            return embedding
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "Quota" in error_msg:
+                wait_time = 15 * (attempt + 1)
+                print(f"⚠️ Vector embedding rate limited. Waiting {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"Embedding failed: {e}")
+                return None
+                
+    return None
+
+def get_osv_vulnerabilities():
+    """Check the Open Source Vulnerability (OSV) database for watched packages."""
+    print("Checking OSV for watched package compromises...")
+    
+    # Define the exact tech stack you want to monitor
+    watched_packages = [
+        {"name": "react", "ecosystem": "npm"},
+        {"name": "next", "ecosystem": "npm"},
+        {"name": "fastapi", "ecosystem": "PyPI"},
+        {"name": "requests", "ecosystem": "PyPI"},
+        {"name": "boto3", "ecosystem": "PyPI"} # AWS Python SDK
+    ]
+    
+    stories = []
+    for pkg in watched_packages:
+        try:
+            res = requests.post("https://api.osv.dev/v1/query", json={"package": pkg}, timeout=10)
+            if res.status_code == 200 and "vulns" in res.json():
+                vulns = res.json()["vulns"]
+                
+                # Grab only the most recent vulnerability for this package
+                recent_vuln = vulns[0] 
+                vuln_id = recent_vuln.get('id')
+                
+                title = f"🚨 COMPROMISE: {pkg['name']} ({pkg['ecosystem']}) - {vuln_id}"
+                
+                stories.append({
+                    "title": title,
+                    "url": f"https://osv.dev/vulnerability/{vuln_id}",
+                    "text": recent_vuln.get('details', 'No detailed description provided.'),
+                    "source": "OSV Database",
+                    "bypass_llm": True,           # <--- New Flag: Fast-track this!
+                    "pre_score": 10,              # Automatic max priority
+                    "pre_tags": ["Security", "Zero-Day", pkg['name'], pkg['ecosystem']]
+                })
+        except Exception as e:
+            print(f"OSV fetch failed for {pkg['name']}: {e}")
+            
+    return stories
 
 def main():
     # 1. Gather raw data from all our sources
     hn_stories = get_hn_top_stories(limit=5)
     cisa_vulns = get_cisa_vulnerabilities(limit=3)
-    
+    osv_vulns = get_osv_vulnerabilities()
+
     # Standardize Hacker News data to match our pipeline structure
     for story in hn_stories:
         story['text'] = None 
         story['source'] = "Hacker News"
 
     # Combine all items into one master list
-    all_items = hn_stories + cisa_vulns
+    all_items = hn_stories + cisa_vulns + osv_vulns
     
     for item in all_items:
         print(f"Processing: {item['title']}")
@@ -178,8 +236,8 @@ def main():
         except Exception as e:
             print(f"Database insert failed: {e}")
         
-        print("Sleeping 5 seconds to respect API rate limits...")
-        time.sleep(5)
+        print("Sleeping 12 seconds to respect API rate limits...")
+        time.sleep(12)
 
 if __name__ == "__main__":
     main()
