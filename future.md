@@ -28,7 +28,6 @@ Zero-Day Fast Tracking: Critical CVEs from the OSV database bypass standard queu
 Personalized Ranking: Opt-in authenticated users receive personalized feeds calculated via the cosine distance between the article's vector and their custom user-profile vector.
 
 ---
-
 🔥 Resume-Worthy Engineering Decisions
 Deterministic Filtering Pre-LLM: Reduced API token consumption by 80% and slashed processing latency by building a local, regex-based heuristic engine to drop non-technical noise before triggering expensive AI calls.
 
@@ -119,8 +118,7 @@ Push to the branch (git push origin feature/AmazingFeature).
 Open a Pull Request.
 
 For major architectural changes, please open an issue first to discuss what you would like to change.
-
-````
+```
 
 🏗 Production Architecture
 Signal is built on a decoupled, microservice-inspired architecture designed for scale, fault tolerance, and asynchronous processing.
@@ -132,8 +130,7 @@ Code snippet
 ```mermaid
 graph TD
 ...
-````
-
+```
     subgraph Ingestion Pipeline [Data Extractors & Transformers]
     Cron[Cron Job / EventBridge] --> Scraper(Python Scraper Engine)
     Scraper --> OSV[OSV / CISA API]
