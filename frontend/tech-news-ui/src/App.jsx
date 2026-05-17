@@ -127,7 +127,7 @@ function App() {
       {filteredArticles.length === 0 ? (
         <p>No articles found matching your criteria.</p>
       ) : (
-        filteredArticles.map((article) => (
+         filteredArticles.map((article) => (
           <div key={article.id} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '15px', borderRadius: '5px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h3 style={{ margin: 0 }}>
@@ -139,15 +139,61 @@ function App() {
                 Score: {article.score}/10
               </span>
             </div>
+            
             <div style={{ marginBottom: '10px' }}>
               {(article.tags || []).map(tag => (
                  <span key={tag} style={{ fontSize: '12px', color: '#0056b3', marginRight: '8px' }}>#{tag}</span>
               ))}
             </div>
-            <p style={{ fontSize: '12px', color: '#666', marginTop: 0 }}>Source: {article.source}</p>
-            <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-              {article.summary}
+        
+          {/* Updated Source & Reading Time Row */}
+            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
+              <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+                Source: <strong>{article.source}</strong>
+              </p>
+              {article.published_at && (
+                <span style={{ fontSize: '12px', color: '#666' }}>
+                  📅 {new Date(article.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                ⏱️ {article.reading_time || 1} min read
+              </span>
             </div>
+            
+          {/* Safely render the summary as a list if it's an array or stringified array */}
+          <div style={{ lineHeight: '1.6', marginTop: '10px' }}>
+            {(() => {
+              let bulletPoints;
+              try {
+                // If it is a stringified array from the database (e.g. '["point 1"]')
+                if (typeof article.summary === 'string' && article.summary.startsWith('[')) {
+                  bulletPoints = JSON.parse(article.summary);
+                } 
+                // If it's already an array
+                else if (Array.isArray(article.summary)) {
+                  bulletPoints = article.summary;
+                }
+                // If it's just a raw text string, wrap it in an array to map it
+                else {
+                  bulletPoints = [article.summary];
+                }
+                
+                return (
+                  <ul style={{ paddingLeft: '20px', margin: 0, color: '#444' }}>
+                    {bulletPoints.map((point, index) => (
+                      <li key={index} style={{ marginBottom: '8px' }}>{point}</li>
+                    ))}
+                  </ul>
+                );
+              } catch (e) {
+                // Fallback if parsing fails
+                console.error(e)
+                return <div>{article.summary}</div>;
+              }
+            })()}
+          </div>
+            
             {article.similarity && (
                 <p style={{ fontSize: '11px', color: 'green', marginTop: '10px' }}>
                   Match Strength: {(article.similarity * 100).toFixed(1)}%

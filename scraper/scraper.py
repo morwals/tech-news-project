@@ -5,6 +5,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
+import datetime
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -32,8 +33,62 @@ def get_hn_top_stories(limit=5):
         story_res = requests.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
         story = story_res.json()
         if story and 'url' in story:
+            # Convert HN unix timestamp to ISO format
+            pub_time = datetime.datetime.fromtimestamp(story.get('time', time.time()), datetime.timezone.utc).isoformat()
+            story['published_at'] = pub_time
             stories.append(story)
     return stories
+
+# A dictionary of keywords mapped to standard tags we want to support in the UI
+TECH_DICTIONARY = {
+    "react": "React", "react.js": "React", "next.js": "React", "vite": "React", "frontend": "Web Development",
+    "python": "Python", "fastapi": "Python", "django": "Python", "flask": "Python",
+    "aws": "AWS", "lambda": "AWS", "sqs": "AWS", "s3": "AWS", "cloudwatch": "AWS", "serverless": "AWS",
+    "postgres": "System Design", "postgresql": "System Design", "opensearch": "System Design", 
+    "database": "System Design", "sharding": "System Design", "redis": "System Design", "architecture": "System Design",
+    "vulnerability": "Security", "compromise": "Security", "zero-day": "Security", "exploit": "Security", 
+    "cve": "Security", "malware": "Security", "hack": "Security", "injection": "Security"
+}
+
+def analyze_text_deterministically(title, text):
+    """
+    Analyzes raw text using pure Python logic to calculate tags, reading time,
+    and a local priority score WITHOUT calling an LLM.
+    """
+    combined_content = (title + " " + text).lower()
+    local_tags = set()
+    
+    # 1. Keyword Tag Extraction
+    for keyword, tag_name in TECH_DICTIONARY.items():
+        if re.search(r'\b' + re.escape(keyword) + r'\b', combined_content):
+            local_tags.add(tag_name)
+            
+    # Convert set back to list, default to "Tech News" if no keywords hit
+    final_tags = list(local_tags)[:3] if local_tags else ["Tech News"]
+    
+    # 2. Reading Time Calculation (Average human reads 200 words per minute)
+    word_count = len(text.split())
+    reading_time = max(1, round(word_count / 200))
+    
+    # 3. Mathematical Scoring Engine
+    # Start with a base score of 5
+    base_score = 5
+    
+    # Boost if high-priority indicators are present
+    if "Security" in final_tags:
+        base_score += 3 
+    if any(word in title.lower() for word in ["compromise", "vulnerability", "breach", "critical"]):
+        base_score += 2 
+        
+    # Cap score between 1 and 10
+    final_score = min(10, max(1, base_score))
+    
+    return {
+        "tags": final_tags,
+        "score": final_score,
+        "reading_time": reading_time,
+        "is_relevant": len(local_tags) > 0 
+    }
 
 def get_cisa_vulnerabilities(limit=3):
     """Fetch the latest actively exploited vulnerabilities from CISA."""
@@ -151,7 +206,7 @@ def get_osv_vulnerabilities():
         {"name": "next", "ecosystem": "npm"},
         {"name": "fastapi", "ecosystem": "PyPI"},
         {"name": "requests", "ecosystem": "PyPI"},
-        {"name": "boto3", "ecosystem": "PyPI"} # AWS Python SDK
+        {"name": "boto3", "ecosystem": "PyPI"} 
     ]
     
     stories = []
@@ -161,10 +216,13 @@ def get_osv_vulnerabilities():
             if res.status_code == 200 and "vulns" in res.json():
                 vulns = res.json()["vulns"]
                 
-                # Grab only the most recent vulnerability for this package
+                recent_vuln = vulns[0] 
+                vulns = res.json()["vulns"]
                 recent_vuln = vulns[0] 
                 vuln_id = recent_vuln.get('id')
                 
+                pub_time = recent_vuln.get('published', datetime.datetime.now(datetime.timezone.utc).isoformat())
+
                 title = f"🚨 COMPROMISE: {pkg['name']} ({pkg['ecosystem']}) - {vuln_id}"
                 
                 stories.append({
@@ -172,9 +230,10 @@ def get_osv_vulnerabilities():
                     "url": f"https://osv.dev/vulnerability/{vuln_id}",
                     "text": recent_vuln.get('details', 'No detailed description provided.'),
                     "source": "OSV Database",
-                    "bypass_llm": True,           # <--- New Flag: Fast-track this!
-                    "pre_score": 10,              # Automatic max priority
-                    "pre_tags": ["Security", "Zero-Day", pkg['name'], pkg['ecosystem']]
+                    "bypass_llm": True,
+                    "pre_score": 10,
+                    "pre_tags": ["Security", "Zero-Day", pkg['name'], pkg['ecosystem']],
+                    "published_at": pub_time
                 })
         except Exception as e:
             print(f"OSV fetch failed for {pkg['name']}: {e}")
@@ -182,62 +241,86 @@ def get_osv_vulnerabilities():
     return stories
 
 def main():
-    # 1. Gather raw data from all our sources
-    hn_stories = get_hn_top_stories(limit=5)
+    # 1. Gather raw data from all sources
+    hn_stories = get_hn_top_stories(limit=10)
     cisa_vulns = get_cisa_vulnerabilities(limit=3)
-    osv_vulns = get_osv_vulnerabilities()
-
-    # Standardize Hacker News data to match our pipeline structure
+    osv_vulns = get_osv_vulnerabilities() 
+    
     for story in hn_stories:
         story['text'] = None 
         story['source'] = "Hacker News"
 
-    # Combine all items into one master list
     all_items = hn_stories + cisa_vulns + osv_vulns
     
     for item in all_items:
         print(f"Processing: {item['title']}")
         
-        # 2. Check Database to avoid duplicates
+        # 2. Deduplication check
         existing = supabase.table("articles").select("*").eq("url", item['url']).execute()
         if len(existing.data) > 0:
             print("Already exists in DB. Skipping.")
             continue
             
-        # 3. Get the text (Scrape if HN, use provided text if CISA)
+        # 3. Fetch full body text if not present
         article_text = item.get('text')
         if not article_text:
             article_text = scrape_article_text(item['url'])
             if not article_text:
                 print("Could not extract text. Skipping.")
                 continue
-            
-        # 4. AI Processing (Summarize, Score, Tag)
-        ai_data = process_with_ai(item['title'], article_text)
+                
+        # 4. RUN DETERMINISTIC PRE-FILTERING ENGINE
+        local_analysis = analyze_text_deterministically(item['title'], article_text)
+        
+        # If it's a regular story and has no relevance to our tech domain, drop it!
+        if not item.get("bypass_llm") and not local_analysis["is_relevant"]:
+            print(f"⏩ Discarding non-technical noise article: '{item['title']}'. Skipping.")
+            continue
 
-        # 4.5 Generate Vector Embedding from the summary
+        # 5. Handle AI Summarization vs Fast-Track
+        if item.get("bypass_llm"):
+            print(f"Fast-tracking critical alert for {item['title']}...")
+            summary_text = item['text'][:500] + "..." if len(item['text']) > 500 else item['text']
+            ai_data = {
+                "summary": summary_text,
+                "score": item["un_score"] if "un_score" in item else local_analysis["score"],
+                "tags": item["pre_tags"]
+            }
+        else:
+            # We only touch the LLM for articles that passed our strict local tech filters!
+            print(f"🔥 Passed pre-filtering (Score: {local_analysis['score']}). Requesting AI summary...")
+            ai_data = process_with_ai(item['title'], article_text)
+            
+            # Use the mathematically calculated score and tags to complement or override the LLM if needed
+            if ai_data["score"] == 5 and local_analysis["score"] > 5:
+                ai_data["score"] = local_analysis["score"] 
+
+        # 6. Generate Vector Embedding from the summary
         summary_text = ai_data.get('summary', '')
         embedding = generate_embedding(summary_text) if summary_text else None
         
-        # 5. Save to Database
+        # 7. Save to Database
         record = {
             "title": item['title'],
             "url": item['url'],
             "summary": ai_data.get('summary'),
             "score": ai_data.get('score'),
-            "tags": ai_data.get('tags'),
+            "tags": ai_data.get('tags') if not item.get("bypass_llm") else ai_data.get('tags'),
             "source": item['source'],
-            "embedding": embedding
+            "embedding": embedding,
+            "reading_time": local_analysis["reading_time"],
+            "published_at": item.get('published_at')
         }
         
         try:
             supabase.table("articles").insert(record).execute()
-            # print(f"Saved with score {record['score']} and tags {record['tags']}!\n")
+            print(f"✅ Successfully archived: {item['title']}\n")
         except Exception as e:
             print(f"Database insert failed: {e}")
         
-        print("Sleeping 12 seconds to respect API rate limits...")
-        time.sleep(12)
+        if not item.get("bypass_llm"):
+            print("Sleeping 12 seconds to respect API rate limits...")
+            time.sleep(12)
 
 if __name__ == "__main__":
     main()
