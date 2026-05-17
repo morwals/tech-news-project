@@ -31,17 +31,19 @@ Personalized Ranking: Opt-in authenticated users receive personalized feeds calc
 Signal is built on a decoupled, microservice-inspired architecture designed for scale, fault tolerance, and asynchronous processing.
 
 Code snippet
-graph TD
-subgraph Ingestion Pipeline [Data Extractors & Transformers]
-Cron[Cron Job / EventBridge] --> Scraper(Python Scraper Engine)
-Scraper --> OSV[OSV / CISA API]
-Scraper --> RSS[Dev.to / InfoQ RSS]
-Scraper --> HN[Hacker News API]
-Scraper --> PreFilter{Deterministic Filter\nKeyword & Freshness}
-PreFilter -- Noise --> Drop[Discard]
-PreFilter -- High Signal --> LLM[Gemini API\nSummary & Score]
-LLM --> Vec[Generate 768d Vector]
-end
+
+```mermaid
+    graph TD
+    subgraph Ingestion Pipeline [Data Extractors & Transformers]
+    Cron[Cron Job / EventBridge] --> Scraper(Python Scraper Engine)
+    Scraper --> OSV[OSV / CISA API]
+    Scraper --> RSS[Dev.to / InfoQ RSS]
+    Scraper --> HN[Hacker News API]
+    Scraper --> PreFilter{Deterministic Filter\nKeyword & Freshness}
+    PreFilter -- Noise --> Drop[Discard]
+    PreFilter -- High Signal --> LLM[Gemini API\nSummary & Score]
+    LLM --> Vec[Generate 768d Vector]
+    end
 
     subgraph Storage & Serving [Core Backend]
         Vec --> DB[(Supabase PostgreSQL\n+ pgvector)]
@@ -147,3 +149,4 @@ Push to the branch (git push origin feature/AmazingFeature).
 Open a Pull Request.
 
 For major architectural changes, please open an issue first to discuss what you would like to change.
+```
