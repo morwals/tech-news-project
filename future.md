@@ -1,11 +1,12 @@
-⚡ Signal: Engineering Intelligence Platform
+## **⚡ Signal: Engineering Intelligence Platform**
+
 Signal is an open-source, event-driven Engineering Intelligence Platform. It moves beyond traditional "dumb" RSS aggregators by utilizing deterministic pre-filtering, LLM-powered context extraction, and 768-dimensional vector embeddings to deliver the highest signal-to-noise ratio of technical content on the internet.
 
-🚀 Product Vision
+## **🚀 Product Vision**
 
 To build the ultimate automated triage engine for software engineers. Signal doesn't just list the news; it mathematically evaluates, deduplicates, and personalizes technical intelligence so engineers can stay at the cutting edge in less than 3 minutes a day.
 
-🧠 The Problem
+### **🧠 The Problem**
 
 Tab Fatigue: Engineers waste 20+ minutes a day checking Hacker News, Dev.to, InfoQ, and OSV databases.
 
@@ -15,7 +16,7 @@ Redundancy: When a new framework drops, 15 different sites publish the exact sam
 
 Lack of "Why": Traditional feeds provide a title and a link, but fail to answer the engineer's immediate question: "Why should I care about this update?"
 
-✨ Why This is Different (The Moat)
+**✨ Why This is Different (The Moat)**
 
 Anonymous-First UX: No forced signups to read the feed. Maximum utility, zero friction.
 
@@ -28,7 +29,9 @@ Zero-Day Fast Tracking: Critical CVEs from the OSV database bypass standard queu
 Personalized Ranking: Opt-in authenticated users receive personalized feeds calculated via the cosine distance between the article's vector and their custom user-profile vector.
 
 ---
-🔥 Resume-Worthy Engineering Decisions
+
+## Engineering Decisions
+
 Deterministic Filtering Pre-LLM: Reduced API token consumption by 80% and slashed processing latency by building a local, regex-based heuristic engine to drop non-technical noise before triggering expensive AI calls.
 
 Idempotent Database Writes: Engineered ingestion pipelines to be safely retriable. Database upserts rely on strict URL hashing constraints to prevent duplicate records during network timeouts.
@@ -61,50 +64,51 @@ Frontend: React, Vite
 
 Infrastructure: GitHub Actions (CI/CD / Cron), Vercel (Frontend), Render/AWS (Backend)
 
-🗺 MVP → Production Roadmap
+### 🗺 MVP → Production Roadmap
+
 Phase 1: The Core Engine (Completed ✅)
 
-[x] Multi-source ingestion (HN, RSS, OSV APIs).
+\[x\] Multi-source ingestion (HN, RSS, OSV APIs).
 
-[x] Deterministic heuristic pre-filtering.
+\[x\] Deterministic heuristic pre-filtering.
 
-[x] AI-powered summarization and vector generation.
+\[x\] AI-powered summarization and vector generation.
 
-[x] Semantic vector search endpoint.
+\[x\] Semantic vector search endpoint.
 
-[x] Anonymous-first React UI with reading time and source metadata.
+\[x\] Anonymous-first React UI with reading time and source metadata.
 
 Phase 2: Personalization & Delivery (In Progress ⏳)
 
-[ ] Supabase Magic Link Authentication (Opt-in only).
+\[ \] Supabase Magic Link Authentication (Opt-in only).
 
-[ ] User Profile Vectorization (calculating user interest embeddings).
+\[ \] User Profile Vectorization (calculating user interest embeddings).
 
-[ ] Distributed Task Queue implementation (Redis/Celery) for reliable job processing.
+\[ \] Distributed Task Queue implementation (Redis/Celery) for reliable job processing.
 
-[ ] Automated "Top 5 Engineering Signals" daily email digests.
+\[ \] Automated "Top 5 Engineering Signals" daily email digests.
 
 Phase 3: Enterprise Polish (Planned 🔮)
 
-[ ] Vector-based article deduplication clustering (The "TechMeme" feature).
+\[ \] Vector-based article deduplication clustering (The "TechMeme" feature).
 
-[ ] GitHub trending repository ingestion.
+\[ \] GitHub trending repository ingestion.
 
-[ ] Slack/Microsoft Teams webhook integrations for engineering teams.
+\[ \] Slack/Microsoft Teams webhook integrations for engineering teams.
 
-🎯 Success Metrics
-Signal Density: >85% of ingested articles must contain actionable architectural, security, or codebase knowledge.
+**🎯 Success Metrics**
+Signal Density: &gt;85% of ingested articles must contain actionable architectural, security, or codebase knowledge.
 
-System Reliability: 99.9% uptime on the FastAPI endpoints; < 5% failure rate on automated daily ingestion runs.
+System Reliability: 99.9% uptime on the FastAPI endpoints; &lt; 5% failure rate on automated daily ingestion runs.
 
-Processing Latency: Vector search results returned to the client in < 250ms.
+Processing Latency: Vector search results returned to the client in &lt; 250ms.
 
 Efficiency: Cost-to-serve maintained at near-zero via aggressive local pre-filtering and optimized LLM context windows.
 
-📌 Why Engineers Keep Coming Back
+**📌 Why Engineers Keep Coming Back**
 Signal respects the developer's time. By stripping away social validation metrics (likes, comments), forced gamification, and tracking walls, it provides a brutalist, high-efficiency reading experience. You get in, you get the architectural intelligence you need, and you get back to writing code.
 
-🤝 Contribution Guide
+**🤝 Contribution Guide**
 We welcome contributions from backend engineers, data scientists, and UI/UX designers.
 
 Fork the repository.
@@ -118,7 +122,6 @@ Push to the branch (git push origin feature/AmazingFeature).
 Open a Pull Request.
 
 For major architectural changes, please open an issue first to discuss what you would like to change.
-
 
 🏗 Production Architecture
 Signal is built on a decoupled, microservice-inspired architecture designed for scale, fault tolerance, and asynchronous processing.
