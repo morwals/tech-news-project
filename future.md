@@ -59,6 +59,7 @@ Code snippet
         Worker -- Fails --> DLQ[Dead Letter Queue]
     end
 
+---
 🔥 Resume-Worthy Engineering Decisions
 Deterministic Filtering Pre-LLM: Reduced API token consumption by 80% and slashed processing latency by building a local, regex-based heuristic engine to drop non-technical noise before triggering expensive AI calls.
 
