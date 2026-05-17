@@ -12,4 +12,4 @@ __pycache__/
 **/.env
 .env
 errors-seen.txt
-notes.txt
+notes.md
