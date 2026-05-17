@@ -186,15 +186,23 @@ def get_cisa_vulnerabilities(limit=3):
         print(f"Failed to fetch CISA data: {e}")
         return []
 
-def scrape_article_text(url):
+def scrape_article_data(url):
+    """Scrapes both the article body text and the Open Graph hero image."""
     try:
         res = requests.get(url, timeout=5)
         soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 1. Extract Text
         paragraphs = soup.find_all('p')
         text = " ".join([p.text for p in paragraphs])
-        return text[:3000] 
+        
+        # 2. Extract Image (Look for <meta property="og:image" content="...">)
+        og_image = soup.find('meta', property='og:image')
+        image_url = og_image['content'] if og_image else None
+        
+        return text[:3000], image_url
     except Exception:
-        return ""
+        return "", None
 
 def process_with_ai(title, text, retries=3):
     prompt = f"""
@@ -339,8 +347,9 @@ def main():
             
         # 3. Fetch full body text if not present
         article_text = item.get('text')
+        image_url = None
         if not article_text:
-            article_text = scrape_article_text(item['url'])
+            article_text, image_url = scrape_article_data(item['url'])
             if not article_text:
                 print("Could not extract text. Skipping.")
                 continue

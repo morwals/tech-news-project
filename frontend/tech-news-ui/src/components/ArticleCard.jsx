@@ -34,7 +34,16 @@ function ArticleCard({ article }) {
           Score: {article.score}/10
         </span>
       </div>
-      
+      {article.image_url && (
+        <img 
+          src={article.image_url} 
+          alt={article.title} 
+          style={{ 
+            width: '100%', height: '220px', objectFit: 'cover', 
+            borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' 
+          }} 
+        />
+      )}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
         {(article.tags || []).map(tag => (
            <span key={tag} style={{ fontSize: '12px', color: '#2563eb', fontWeight: '600', backgroundColor: '#eff6ff', padding: '2px 8px', borderRadius: '4px' }}>
