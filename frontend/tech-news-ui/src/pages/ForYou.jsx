@@ -1,116 +1,107 @@
-import { useState, useEffect } from 'react';
-import ArticleCard from '../components/ArticleCard';
-import { createClient } from '@supabase/supabase-js';
+import { useState, useEffect } from 'react'
+import { Lock, Sparkles } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import ArticleCard from '../components/ArticleCard'
+import { SkeletonList } from '../components/SkeletonCard'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_KEY
-);
-
-function ForYou({ apiUrl, setCurrentPage }) {
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
+function ForYou({ apiUrl }) {
+  const [articles, setArticles] = useState([])
+  const [loading, setLoading] = useState(isSupabaseConfigured)
+  const [user, setUser] = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
-    let isMounted = true;
+    if (!isSupabaseConfigured) return
+    let isMounted = true
 
-    // 1. Move function INSIDE useEffect to fix hoisting errors and missing dependencies
-    const fetchPersonalizedNews = async (userId) => {
-      console.log("🚀 Firing API call for user:", userId);
-      setLoading(true);
+    const fetchPersonalized = async userId => {
+      setLoading(true)
       try {
-        const res = await fetch(`${apiUrl}/api/news/personalized?user_id=${userId}`);
-        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-        
-        const data = await res.json();
-        console.log("✅ API Response Data:", data);
-        
-        // Only update React state if the user hasn't clicked away to another tab
-        if (isMounted) {
-          setArticles(data.articles || []);
-        }
+        const res = await fetch(`${apiUrl}/api/news/personalized?user_id=${userId}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (isMounted) setArticles(data.articles || [])
       } catch (err) {
-        console.error("❌ Failed to fetch personalized news:", err);
+        console.error('Personalized feed error:', err)
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false)
       }
-    };
+    }
 
-    // 2. Initial check on load
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMounted) return;
-      console.log("🔍 Initial Session Check:", session ? "User Found" : "No User");
-      
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (currentUser) {
-        fetchPersonalizedNews(currentUser.id);
-      } else {
-        setLoading(false);
-      }
-    });
+      if (!isMounted) return
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      if (currentUser) fetchPersonalized(currentUser.id)
+      else setLoading(false)
+    })
 
-    // 3. The active listener (Catches changes across tabs)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!isMounted) return;
-      console.log("🔄 Auth State Changed:", _event);
-      
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (currentUser) {
-        fetchPersonalizedNews(currentUser.id);
-      } else {
-        setLoading(false);
-      }
-    });
+      if (!isMounted) return
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      if (currentUser) fetchPersonalized(currentUser.id)
+      else setLoading(false)
+    })
 
-    // Cleanup listener on unmount
     return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, [apiUrl]); // apiUrl is now the only required dependency!
+      isMounted = false
+      subscription.unsubscribe()
+    }
+  }, [apiUrl])
 
-  if (loading) return <h2 style={{ color: '#475569', textAlign: 'center', marginTop: '40px' }}>Curating your intelligence feed...</h2>;
+  if (loading) return <SkeletonList count={4} />
 
   if (!user) {
     return (
-      <div style={{ textAlign: 'center', marginTop: '60px', padding: '40px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-        <h2 style={{ color: '#0f172a', marginBottom: '12px' }}>🔒 Personalized Feed Locked</h2>
-        <p style={{ color: '#64748b', marginBottom: '24px' }}>Subscribe and set your engineering profile to unlock a feed mathematically matched to your stack.</p>
-        <button 
-          onClick={() => setCurrentPage('member')} 
-          style={{ padding: '12px 24px', backgroundColor: '#0f172a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+      <div className="flex flex-col items-center text-center py-16 px-4">
+        <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+          <Lock size={24} className="text-slate-400" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Personalized feed locked</h2>
+        <p className="text-slate-500 text-sm max-w-xs mb-6 leading-relaxed">
+          Subscribe and set your engineering profile to unlock a feed matched to your stack.
+        </p>
+        <button
+          onClick={() => navigate('/subscribe')}
+          className="px-5 py-2.5 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-700 transition-colors"
         >
-          Go to Subscribe
+          Get started
         </button>
       </div>
-    );
+    )
   }
 
   return (
     <div>
-      <h3 style={{ color: '#2563eb', fontSize: '15px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        🎯 For You
-      </h3>
-      <p style={{ color: '#64748b', marginBottom: '24px', fontSize: '14px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles size={14} className="text-blue-500" />
+        <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
+          For You
+        </span>
+      </div>
+      <p className="text-sm text-slate-500 mb-6 pb-5 border-b border-slate-100">
         Articles semantically matched to your engineering profile.
       </p>
 
       {articles.length === 0 ? (
-        <p style={{ color: '#64748b', textAlign: 'center', padding: '40px', backgroundColor: '#fff', borderRadius: '12px' }}>
-          Your profile vector hasn't matched any recent articles yet. Make sure your bio in the Subscribe tab is detailed!
-        </p>
+        <div className="text-center py-16 px-4">
+          <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+            No matches yet. Make sure your bio in the Subscribe tab describes your stack in detail.
+          </p>
+          <button
+            onClick={() => navigate('/subscribe')}
+            className="mt-4 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200 transition-colors"
+          >
+            Update profile
+          </button>
+        </div>
       ) : (
         articles.map(article => <ArticleCard key={article.id} article={article} />)
       )}
     </div>
-  );
+  )
 }
 
-export default ForYou;
+export default ForYou

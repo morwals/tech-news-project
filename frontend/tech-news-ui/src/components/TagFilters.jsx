@@ -1,28 +1,27 @@
-
+import clsx from 'clsx'
 
 function TagFilters({ allTags, selectedTag, setSelectedTag }) {
   return (
-    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
+    <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-6">
       {allTags.map(tag => {
-        const isActive = selectedTag === tag;
+        const isActive = selectedTag === tag
         return (
-          <button 
+          <button
             key={tag}
             onClick={() => setSelectedTag(tag)}
-            style={{
-              padding: '6px 14px', borderRadius: '20px', border: '1px solid',
-              borderColor: isActive ? '#3b82f6' : '#e2e8f0', cursor: 'pointer', 
-              fontWeight: '600', fontSize: '13px', transition: 'all 0.2s',
-              backgroundColor: isActive ? '#e0f2fe' : '#fff',
-              color: isActive ? '#0369a1' : '#64748b'
-            }}
+            className={clsx(
+              'shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all',
+              isActive
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700'
+            )}
           >
-            {tag === "All" ? "🏷️ All Topics" : `#${tag}`}
+            {tag === 'All' ? 'All Topics' : `#${tag}`}
           </button>
-        );
+        )
       })}
     </div>
-  );
+  )
 }
 
-export default TagFilters;
+export default TagFilters
