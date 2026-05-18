@@ -7,12 +7,12 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 function ForYou({ apiUrl }) {
   const [articles, setArticles] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(isSupabaseConfigured)
   const [user, setUser] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!isSupabaseConfigured) { setLoading(false); return }
+    if (!isSupabaseConfigured) return
     let isMounted = true
 
     const fetchPersonalized = async userId => {
