@@ -15,19 +15,12 @@ An open-source, event-driven **Engineering Intelligence Platform** that filters 
 
 To build the ultimate automated triage engine for software engineers. Signal doesn't just list the news; it mathematically evaluates, deduplicates, and personalizes technical intelligence so engineers can stay at the cutting edge in less than 3 minutes a day.
 
-### **🧠 The Problem**
+## **🧠 The Problem**
 
 - Tab Fatigue: Engineers waste 20+ minutes a day checking Hacker News, Dev.to, InfoQ, and OSV databases.
 - Low Signal-to-Noise: 80% of tech news is PR fluff, VC funding announcements, or SEO spam.
 - Redundancy: When a new framework drops, 15 different sites publish the exact same article.
 - Lack of "Why": Traditional feeds provide a title and a link, but fail to answer the engineer's immediate question: "Why should I care   about this update?"
-
-**✨ Why This is Different (The Moat)**
-- Anonymous-First UX: No forced signups to read the feed. Maximum utility, zero friction.
-- The "Why I Care" Layer: AI extracts exactly 3 bullet points of hardcore technical value from every article.
-- Vector Deduplication: If 5 sites report on the same Redis outage, pgvector semantic clustering groups them into a single timeline       event.
-- Zero-Day Fast Tracking: Critical CVEs from the OSV database bypass standard queues for instant 10/10 priority routing.
-- Personalized Ranking: Opt-in authenticated users receive personalized feeds calculated via the cosine distance between the article's    vector and their custom user-profile vector.
 
 ## 🏗 Production Architecture
 ```mermaid
