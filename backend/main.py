@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import news, search
+from routes import digest
+from routes import profile
 
 app = FastAPI(title="Tech Intelligence API")
 
@@ -20,6 +22,8 @@ app.add_middleware(
 
 app.include_router(news.router)
 app.include_router(search.router)
+app.include_router(digest.router)
+app.include_router(profile.router)
 
 if __name__ == "__main__":
     import uvicorn
