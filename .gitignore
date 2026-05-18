@@ -8,6 +8,8 @@ __pycache__/
 **/node_modules/
 **/dist/
 
+.claude
+
 # Environment secrets (Crucial!)
 **/.env
 .env
