@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# 1. Start the Celery worker in the background (notice the & at the end)
+# 1. Start the Celery worker using the explicit python module command
 echo "Starting Celery Worker..."
-celery -A worker.celery_app worker --loglevel=info &
+python -m celery -A worker.celery_app worker --loglevel=info &
 
 # 2. Start the FastAPI application in the foreground
 echo "Starting FastAPI Server..."
